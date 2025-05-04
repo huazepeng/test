@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>学生成绩动态看板</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        .dashboard {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            background-color: #1976d2;
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .card {
+            background-color: white;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .card-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #1976d2;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .filters {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .filter-item {
+            background-color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .filter-item:hover {
+            background-color: #e3f2fd;
+        }
+        .filter-item.active {
+            background-color: #1976d2;
+            color: white;
+        }
+        .chart-container {
+            height: 300px;
+            margin-bottom: 20px;
+            background-color: white;
+            border-radius: 5px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        .highlight {
+            background-color: #fffde7;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .badge-positive {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        .badge-negative {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .badge-neutral {
+            background-color: #e3f2fd;
+            color: #1565c0;
+        }
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .summary-card {
+            background-color: white;
+            border-radius: 5px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .summary-card-title {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .summary-card-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1976d2;
+        }
+        .summary-card-detail {
+            font-size: 12px;
+            color: #999;
+            margin-top: 5px;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0,0,0,.1);
+            border-radius: 50%;
+            border-top-color: #1976d2;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1>学生成绩动态看板</h1>
+            <p>最后更新时间: <span id="update-time"></span></p>
+        </div>
+
+        <div class="filters">
+            <div class="filter-item active" data-filter="all">全部班级</div>
+            <div class="filter-item" data-filter="1班">1班</div>
+            <div class="filter-item" data-filter="2班">2班</div>
+            <div class="filter-item" data-filter="3班">3班</div>
+            <div class="filter-item" data-filter="male">男生</div>
+            <div class="filter-item" data-filter="female">女生</div>
+        </div>
+
+        <div class="summary-cards">
+            <div class="summary-card">
+                <div class="summary-card-title">平均分</div>
+                <div class="summary-card-value" id="avg-score">--</div>
+                <div class="summary-card-detail" id="avg-detail">加载中...</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-title">优秀率</div>
+                <div class="summary-card-value" id="excellent-rate">--</div>
+                <div class="summary-card-detail" id="excellent-detail">加载中...</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-title">进步学生</div>
+                <div class="summary-card-value" id="improved">--</div>
+                <div class="summary-card-detail" id="progress-detail">加载中...</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-title">性别比例</div>
+                <div class="summary-card-value" id="gender-ratio">--</div>
+                <div class="summary-card-detail" id="gender-detail">加载中...</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title" id="class-comparison-title">各班级成绩对比</div>
+            <div class="chart-container" id="class-comparison-chart"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title" id="subject-distribution-title">学科成绩分布</div>
+            <div class="chart-container" id="subject-distribution-chart"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title" id="progress-title">学生进步情况</div>
+            <div class="chart-container" id="progress-chart"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">详细数据表</div>
+            <div class="table-container">
+                <table id="student-table">
+                    <thead>
+                        <tr>
+                            <th>学号</th>
+                            <th>姓名</th>
+                            <th>班级</th>
+                            <th>语文</th>
+                            <th>数学</th>
+                            <th>英语</th>
+                            <th>平均分</th>
+                            <th>总评</th>
+                            <th>进步名次</th>
+                            <th>性别</th>
+                        </tr>
+                    </thead>
+                    <tbody id="student-data">
+                        <!-- 数据将通过JS动态加载 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 学生原始数据
+        const studentData = [
+            { id: 101, name: '张三', class: '1班', chinese: 85, math: 72, english: 90, progress: 5, gender: '男', date: '2023-09-01' },
+            { id: 102, name: '李四', class: '2班', chinese: 62, math: 58, english: 75, progress: -2, gender: '女', date: '2023-09-05' },
+            { id: 103, name: '王五', class: '1班', chinese: 78, math: 85, english: 82, progress: 3, gender: '男', date: '2023-09-08' },
+            { id: 104, name: '赵六', class: '3班', chinese: 92, math: 88, english: 95, progress: 8, gender: '女', date: '2023-09-12' },
+            { id: 105, name: '陈七', class: '2班', chinese: 55, math: 63, english: 70, progress: -1, gender: '男', date: '2023-09-15' },
+            { id: 106, name: '周八', class: '1班', chinese: 70, math: 65, english: 80, progress: 2, gender: '女', date: '2023-09-18' },
+            { id: 107, name: '吴九', class: '3班', chinese: 88, math: 92, english: 85, progress: 6, gender: '男', date: '2023-09-22' },
+            { id: 108, name: '郑十', class: '2班', chinese: 45, math: 50, english: 60, progress: -4, gender: '女', date: '2023-09-25' },
+            { id: 109, name: '孙甲', class: '1班', chinese: 95, math: 90, english: 93, progress: 7, gender: '男', date: '2023-09-28' },
+            { id: 110, name: '钱乙', class: '3班', chinese: 60, math: 72, english: 68, progress: 1, gender: '女', date: '2023-10-03' },
+            { id: 111, name: '黄丙', class: '2班', chinese: 82, math: 75, english: 88, progress: 4, gender: '男', date: '2023-10-06' },
+            { id: 112, name: '林丁', class: '1班', chinese: 73, math: 80, english: 77, progress: 3, gender: '女', date: '2023-10-09' },
+            { id: 113, name: '刘戊', class: '3班', chinese: 91, math: 89, english: 94, progress: 9, gender: '男', date: '2023-10-12' },
+            { id: 114, name: '马己', class: '2班', chinese: 68, math: 70, english: 65, progress: 0, gender: '女', date: '2023-10-15' },
+            { id: 115, name: '朱庚', class: '1班', chinese: 84, math: 78, english: 86, progress: 5, gender: '男', date: '2023-10-18' }
+        ];
+
+        // 图表实例
+        let classChart, subjectChart, progressChart;
+
+        // 初始化函数
+        function initDashboard() {
+            // 设置更新时间
+            document.getElementById('update-time').textContent = new Date().toLocaleString();
+            
+            // 初始化表格数据
+            renderStudentTable(studentData);
+            
+            // 初始化图表
+            initClassChart();
+            initSubjectChart();
+            initProgressChart();
+            
+            // 初始加载全部数据
+            updateAllCharts('all');
+        }
+
+        // 渲染学生表格
+        function renderStudentTable(students) {
+            const tbody = document.getElementById('student-data');
+            tbody.innerHTML = '';
+            
+            students.forEach(student => {
+                const avgScore = ((student.chinese + student.math + student.english) / 3).toFixed(1);
+                const evaluation = getEvaluation(avgScore);
+                const progressClass = student.progress > 0 ? 'badge-positive' : 
+                                     student.progress < 0 ? 'badge-negative' : 'badge-neutral';
+                const progressSign = student.progress > 0 ? '+' : '';
+                
+                const row = document.createElement('tr');
+                if (evaluation === '优秀') row.classList.add('highlight');
+                
+                row.innerHTML = `
+                    <td>${student.id}</td>
+                    <td>${student.name}</td>
+                    <td>${student.class}</td>
+                    <td>${student.chinese}</td>
+                    <td>${student.math}</td>
+                    <td>${student.english}</td>
+                    <td>${avgScore}</td>
+                    <td>${evaluation}</td>
+                    <td><span class="badge ${progressClass}">${progressSign}${student.progress}</span></td>
+                    <td>${student.gender}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // 根据平均分获取总评
+        function getEvaluation(avgScore) {
+            if (avgScore >= 85) return '优秀';
+            if (avgScore >= 75) return '优良';
+            if (avgScore >= 60) return '中等';
+            return '待提高';
+        }
+
+        // 初始化班级对比图表
+        function initClassChart() {
+            classChart = echarts.init(document.getElementById('class-comparison-chart'));
+            classChart.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' }
+                },
+                legend: {
+                    data: ['语文', '数学', '英语']
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: ['1班', '2班', '3班']
+                },
+                yAxis: {
+                    type: 'value',
+                    min: 50,
+                    max: 100
+                },
+                series: [
+                    {
+                        name: '语文',
+                        type: 'bar',
+                        itemStyle: { color: '#4CAF50' }
+                    },
+                    {
+                        name: '数学',
+                        type: 'bar',
+                        itemStyle: { color: '#2196F3' }
+                    },
+                    {
+                        name: '英语',
+                        type: 'bar',
+                        itemStyle: { color: '#FFC107' }
+                    }
+                ]
+            });
+        }
+
+        // 初始化学科分布图表
+        function initSubjectChart() {
+            subjectChart = echarts.init(document.getElementById('subject-distribution-chart'));
+            subjectChart.setOption({
+                tooltip: {
+                    trigger: 'item',
+                    formatter: '{a} <br/>{b}: {c}人 ({d}%)'
+                },
+                legend: {
+                    top: '5%',
+                    left: 'center'
+                },
+                series: [
+                    {
+                        name: '成绩分布',
+                        type: 'pie',
+                        radius: ['40%', '70%'],
+                        avoidLabelOverlap: false,
+                        itemStyle: {
+                            borderRadius: 10,
+                            borderColor: '#fff',
+                            borderWidth: 2
+                        },
+                        label: {
+                            show: false,
+                            position: 'center'
+                        },
+                        emphasis: {
+                            label: {
+                                show: true,
+                                fontSize: '18',
+                                fontWeight: 'bold',
+                                formatter: '{b}\n{c}人 ({d}%)'
+                            }
+                        },
+                        labelLine: {
+                            show: false
+                        },
+                        color: ['#4CAF50', '#8BC34A', '#FFC107', '#F44336']
+                    }
+                ]
+            });
+        }
+
+        // 初始化进步情况图表
+        function initProgressChart() {
+            progressChart = echarts.init(document.getElementById('progress-chart'));
+            progressChart.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' }
+                },
+                xAxis: {
+                    type: 'category',
+                    axisLabel: { interval: 0, rotate: 30 }
+                },
+                yAxis: { type: 'value' },
+                series: [
+                    {
+                        name: '进步名次',
+                        type: 'bar',
+                        itemStyle: {
+                            color: function(params) {
+                                return params.value > 0 ? '#4CAF50' : 
+                                       params.value < 0 ? '#F44336' : '#2196F3';
+                            }
+                        }
+                    }
+                ]
+            });
+        }
+
+        // 筛选学生数据
+        function filterStudents(filter) {
+            return studentData.filter(student => {
+                if (filter === 'all') return true;
+                if (filter === 'male') return student.gender === '男';
+                if (filter === 'female') return student.gender === '女';
+                return student.class === filter;
+            });
+        }
+
+        // 计算班级平均分
+        function calculateClassAverages(students) {
+            const classes = ['1班', '2班', '3班'];
+            const result = {
+                chinese: [0, 0, 0],
+                math: [0, 0, 0],
+                english: [0, 0, 0],
+                counts: [0, 0, 0]
+            };
+            
+            students.forEach(student => {
+                const index = classes.indexOf(student.class);
+                if (index !== -1) {
+                    result.chinese[index] += student.chinese;
+                    result.math[index] += student.math;
+                    result.english[index] += student.english;
+                    result.counts[index]++;
+                }
+            });
+            
+            // 计算平均值
+            for (let i = 0; i < 3; i++) {
+                if (result.counts[i] > 0) {
+                    result.chinese[i] = parseFloat((result.chinese[i] / result.counts[i]).toFixed(1));
+                    result.math[i] = parseFloat((result.math[i] / result.counts[i]).toFixed(1));
+                    result.english[i] = parseFloat((result.english[i] / result.counts[i]).toFixed(1));
+                }
+            }
+            
+            return result;
+        }
+
+        // 计算学科分布数据
+        function calculateSubjectData(students) {
+            let excellent = 0, good = 0, medium = 0, poor = 0;
+            
+            students.forEach(student => {
+                const avgScore = (student.chinese + student.math + student.english) / 3;
+                if (avgScore >= 85) excellent++;
+                else if (avgScore >= 75) good++;
+                else if (avgScore >= 60) medium++;
+                else poor++;
+            });
+            
+            return [
+                { value: excellent, name: '优秀 (≥85)' },
+                { value: good, name: '良好 (75-84)' },
+                { value: medium, name: '中等 (60-74)' },
+                { value: poor, name: '待提高 (<60)' }
+            ];
+        }
+
+        // 计算进步情况
+        function calculateProgressData(students) {
+            return students.map(student => ({
+                name: student.name,
+                value: student.progress
+            }));
+        }
+
+        // 计算汇总指标
+        function calculateSummary(students) {
+            if (students.length === 0) {
+                return {
+                    avgScore: '--',
+                    avgDetail: '无数据',
+                    excellentRate: '--',
+                    excellentDetail: '无数据',
+                    improved: '--',
+                    progressDetail: '无数据',
+                    genderRatio: '--',
+                    genderDetail: '无数据'
+                };
+            }
+            
+            // 计算平均分
+            const totalScores = students.reduce((acc, student) => {
+                acc.chinese += student.chinese;
+                acc.math += student.math;
+                acc.english += student.english;
+                return acc;
+            }, { chinese: 0, math: 0, english: 0 });
+            
+            const avgChinese = (totalScores.chinese / students.length).toFixed(1);
+            const avgMath = (totalScores.math / students.length).toFixed(1);
+            const avgEnglish = (totalScores.english / students.length).toFixed(1);
+            const totalAvg = ((totalScores.chinese + totalScores.math + totalScores.english) / (students.length * 3)).toFixed(1);
+            
+            // 计算优秀率
+            const excellentCount = students.filter(student => {
+                const avg = (student.chinese + student.math + student.english) / 3;
+                return avg >= 85;
+            }).length;
+            
+            const excellentRate = (excellentCount / students.length * 100).toFixed(1) + '%';
+            
+            // 计算进步情况
+            const improved = students.filter(s => s.progress > 0).length;
+            const declined = students.filter(s => s.progress < 0).length;
+            
+            // 计算性别比例
+            const maleCount = students.filter(s => s.gender === '男').length;
+            const femaleCount = students.length - maleCount;
+            
+            // 按班级统计性别
+            const classGender = {
+                '1班': { male: 0, female: 0 },
+                '2班': { male: 0, female: 0 },
+                '3班': { male: 0, female: 0 }
+            };
+            
+            students.forEach(student => {
+                if (student.gender === '男') {
+                    classGender[student.class].male++;
+                } else {
+                    classGender[student.class].female++;
+                }
+            });
+            
+            const genderDetail = Object.entries(classGender)
+                .map(([cls, { male, female }]) => `${cls}: ${male}男/${female}女`)
+                .join(' | ');
+            
+            return {
+                avgScore: totalAvg,
+                avgDetail: `语文: ${avgChinese} | 数学: ${avgMath} | 英语: ${avgEnglish}`,
+                excellentRate: excellentRate,
+                excellentDetail: `${excellentCount}人优秀`,
+                improved: `${improved}人`,
+                progressDetail: `退步: ${declined}人`,
+                genderRatio: `${maleCount}男 / ${femaleCount}女`,
+                genderDetail: genderDetail
+            };
+        }
+
+        // 更新所有图表
+        function updateAllCharts(filter) {
+            const filteredStudents = filterStudents(filter);
+            
+            // 更新表格
+            renderStudentTable(filteredStudents);
+            
+            // 更新汇总指标
+            const summary = calculateSummary(filteredStudents);
+            document.getElementById('avg-score').textContent = summary.avgScore;
+            document.getElementById('avg-detail').textContent = summary.avgDetail;
+            document.getElementById('excellent-rate').textContent = summary.excellentRate;
+            document.getElementById('excellent-detail').textContent = summary.excellentDetail;
+            document.getElementById('improved').textContent = summary.improved;
+            document.getElementById('progress-detail').textContent = summary.progressDetail;
+            document.getElementById('gender-ratio').textContent = summary.genderRatio;
+            document.getElementById('gender-detail').textContent = summary.genderDetail;
+            
+            // 更新班级对比图
+            const classAverages = calculateClassAverages(filteredStudents);
+            classChart.setOption({
+                series: [
+                    { data: classAverages.chinese },
+                    { data: classAverages.math },
+                    { data: classAverages.english }
+                ]
+            });
+            document.getElementById('class-comparison-title').textContent = 
+                filter === 'all' ? '各班级成绩对比' : `${filter}成绩对比`;
+            
+            // 更新学科分布图
+            const subjectData = calculateSubjectData(filteredStudents);
+            subjectChart.setOption({
+                series: [{
+                    data: subjectData
+                }],
+                title: {
+                    text: filter === 'all' ? '学科成绩分布' : `${filter}成绩分布`
+                }
+            });
+            
+            // 更新进步情况图
+            const progressData = calculateProgressData(filteredStudents);
+            progressChart.setOption({
+                xAxis: {
+                    data: progressData.map(item => item.name)
+                },
+                series: [{
+                    data: progressData.map(item => item.value)
+                }]
+            });
+            document.getElementById('progress-title').textContent = 
+                filter === 'all' ? '学生进步情况' : `${filter}学生进步情况`;
+        }
+
+        // 初始化筛选器事件
+        function initFilters() {
+            document.querySelectorAll('.filter-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    document.querySelectorAll('.filter-item').forEach(i => i.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    const filterValue = this.getAttribute('data-filter');
+                    updateAllCharts(filterValue);
+                });
+            });
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initDashboard();
+            initFilters();
+        });
+    </script>
+</body>
+</html>
